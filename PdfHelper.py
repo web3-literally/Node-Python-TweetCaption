@@ -5,10 +5,10 @@ class PdfHelper():
         super().__init__()
         self.DPI = 96
         self.MM_IN_INCH = 25.4
-        self.A4_WIDTH = 210
-        self.A4_HEIGHT = 297
-        self.MAX_WIDTH = 700
-        self.MAX_HEIGHT = 1000
+        self.A4_WIDTH = 350
+        self.A4_HEIGHT = 500
+        self.MAX_WIDTH = 1250
+        self.MAX_HEIGHT = 1850
 
     def pixelsToMM(self, pixel):
         return pixel * self.MM_IN_INCH / self.DPI

@@ -69,10 +69,12 @@ def element2Image(browser, element):
     png = browser.get_screenshot_as_png()  # saves screenshot of entire page
     im = Image.open(BytesIO(png))  # uses PIL library to open image in memory
 
+    width = size['width']
+    height = size['height']
     left = location['x']
     top = location['y']
-    right = location['x'] + size['width']
-    bottom = location['y'] + size['height']
+    right = left + width
+    bottom = top + min(height, 900)
 
     im = im.crop((left, top, right, bottom))  # defines crop points
     return im
@@ -100,21 +102,63 @@ def makeTweetScreenshot(browser, url):
         wait(browser, 10).until(EC.presence_of_element_located(
             (By.XPATH, '//article[@aria-haspopup="false" and @role="article"]')))
 
-        # Wait a few for the contents loading correctly
-        sleep(0.5)
         # Start screenshot
-        primary_column = browser.find_element_by_xpath('//div[@data-testid="primaryColumn"]')
-        articles = primary_column.find_elements_by_xpath('.//article[@aria-haspopup="false" and @role="article"]')
-        if len(articles) > 0:
-            parent_of_articles = articles[0].find_element_by_xpath('..').find_element_by_xpath('..').find_element_by_xpath('..')
-            images.append(element2Image(browser, parent_of_articles))
-            extra_images = getExtraImagesFromTweet(url, parent_of_articles)
-            images.extend(extra_images)
+        articles = []
+        repeatCount = 0
+        primary_column = None
+
+        while repeatCount < 2:
+            try:
+                primary_column = browser.find_element_by_xpath('//div[@data-testid="primaryColumn"]')
+                articles = primary_column.find_elements_by_xpath('.//article[@aria-haspopup="false" and @role="article"]')
+                break
+            except Exception as ee:
+                Log('Exception in makeTweetScreenshot function findelement part {0}, repeat count {1}'.format(ee, repeatCount))
+                repeatCount += 1
+                sleep(0.3)
+
+        if primary_column is not None and len(articles) > 0:
+            SCROLL_PAUSE_TIME = 1
+
+            # Move scroll upto top of page and get screenshot
+            browser.execute_script("window.scrollTo(0, 0);")
+            sleep(SCROLL_PAUSE_TIME)
+            im = element2Image(browser, primary_column)
+            if imageValid(im):
+                images.append(im)
+
+            # Move scroll down to down and get screenshot
+            # Get scroll height
+            last_height = browser.execute_script("return document.body.scrollHeight")
+            downCount = 0
+            while True:
+                # Scroll down to bottom
+                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                # Wait to load page
+                sleep(SCROLL_PAUSE_TIME)
+                downCount += 1
+
+                # Calculate new scroll height and compare with last scroll height
+                new_height = browser.execute_script("return document.body.scrollHeight")
+                if new_height == last_height or downCount > 10:
+                    break
+                last_height = new_height
+                im = element2Image(browser, primary_column)
+                if imageValid(im):
+                    images.append(im)
+
+            for article in articles:
+                extra_images = getExtraImagesFromTweet(url, article)
+                images.extend(extra_images)
 
     except Exception as e:
         Log('Exception in makeTweetScreenshot function {0}'.format(e))
     return images
 
+def imageValid(image):
+    width, height = image.size
+    return width != 0 and height != 0
 
 def mergeEach4Images(images):
     merged_images = []
@@ -144,20 +188,30 @@ def mergeEach4Images(images):
         width_2, height_2 = im_2.size
         width_3, height_3 = im_3.size
         width_4, height_4 = im_4.size
+        
+        hgap = 50
+        ygap = 50
+        # common_width = max(width_1, width_2, width_3, width_4)
+        # common_height = int(max(height_1 * width_1 / common_width, height_2 * width_2 / common_width,
+        #                            height_3 * width_3 / common_width, height_4 * width_4 / common_width))
 
-        hgap = 80
-        ygap = 60
-        common_width = max(width_1, width_2, width_3, width_4)
-        common_height = int(max(height_1 * width_1 / common_width, height_2 * width_2 / common_width,
-                                    height_3 * width_3 / common_width, height_4 * width_4 / common_width))
-
+        common_width = 600
+        common_height = 900
+        
         # Scale image to fit space
-        max_size = (common_width, common_height)
-        im_1.thumbnail(max_size, Image.ANTIALIAS)
-        im_2.thumbnail(max_size, Image.ANTIALIAS)
-        im_3.thumbnail(max_size, Image.ANTIALIAS)
-        im_4.thumbnail(max_size, Image.ANTIALIAS)
-
+        ratio_1 = min(common_width / width_1, common_height / height_1)
+        size_1 = (int(width_1 * ratio_1), int(height_1 * ratio_1))
+        im_1 = im_1.resize(size_1)
+        ratio_2 = min(common_width / width_2, common_height / height_2)
+        size_2 = (int(width_2 * ratio_2), int(height_2 * ratio_2))
+        im_2 = im_2.resize(size_2)
+        ratio_3 = min(common_width / width_3, common_height / height_3)
+        size_3 = (int(width_3 * ratio_3), int(height_3 * ratio_3))
+        im_3 = im_3.resize(size_3)
+        ratio_4 = min(common_width / width_4, common_height / height_4)
+        size_4 = (int(width_4 * ratio_4), int(height_4 * ratio_4))
+        im_4 = im_4.resize(size_4)
+        
         total_width = 2 * common_width + hgap
         total_height = 2 * common_height + ygap
 
@@ -192,7 +246,7 @@ def screenshots2Pdf(images, pdf_path):
         image.save(tempName)
         fileNames.append(tempName)
 
-    pdf = FPDF(orientation='P', unit='mm', format=(210, 297))
+    pdf = FPDF(orientation='P', unit='mm', format=(350, 500))
     helper = PdfHelper()
     for fileName in fileNames:
         pdf.add_page('P')

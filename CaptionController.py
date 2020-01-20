@@ -96,7 +96,15 @@ class CaptionController():
                 except Exception as e:
                     Helper.Log('Exception when capturing images {0}'.format(e))
 
-                Helper.Log('Tweet ids captured {0}'.format(tweet_ids.keys()))
+                Helper.Log('Tweet ids captured {0} total count {1}'.format(tweet_ids.keys(), len(tweet_ids)))
+
+                # Close cookie notification
+                try:
+                    cookie_btn = self.browser.find_element_by_xpath('//div[@aria-haspopup="false" and @role="button" and @data-focusable="true" and @tabindex="0"]')
+                    cookie_btn.click()
+                except:
+                    pass
+
                 ################## Making screenshots of tweets ###############
                 index = 0
                 images = []
@@ -105,6 +113,7 @@ class CaptionController():
                     ims = Helper.makeTweetScreenshot(self.browser, tweet_id)
                     images.extend(ims)
                     index += 1
+                    Helper.Log('{0}th tweet screenshot made'.format(index))
                     sleep(0.01)
 
                 ################## Merge 4 images into one image ################
