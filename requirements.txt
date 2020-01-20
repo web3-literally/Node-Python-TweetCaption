@@ -1,0 +1,4 @@
+Pillow==7.0.0
+fpdf==1.7.2
+selenium==3.141.0
+requests==2.22.0
